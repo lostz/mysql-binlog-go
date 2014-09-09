@@ -7,6 +7,35 @@ import (
 	"io"
 )
 
+/*
+GENERAL PARSING INFO
+====================
+
+MySQL's binlog always stores numbers in 32-bit Little Endian and are unsigned.
+(Only exception is XID, which is stored in Big Endian in some versions)
+
+Timestamps in MySQL binlog are stored as as numbers and a UNIX epoch offsets.
+
+*/
+
+/*
+PLEASE NOTE
+===========
+
+All functions in this file assume the passed reader is already seeked
+to the first byte in whatever it is attempting to read. To read an entire
+event header, execute them in this order:
+
+ReadTimestamp
+ReadType
+ReadServerId
+ReadLength
+ReadNextPosition
+ReadFlags
+(Extended v4 fields coming soon)
+
+*/
+
 func checkRead(n int, err error, bytes []byte) error {
 	if err != nil {
 		return err

@@ -20,13 +20,11 @@ func fatalErr(err error) {
 // http://dev.mysql.com/doc/internals/en/determining-binary-log-version.html
 func determineLogVersion(type_code byte, length uint32) uint8 {
 	if type_code != START_EVENT_V3 && type_code != FORMAT_DESCRIPTION_EVENT {
-		fmt.Printf("1: %b, %v\n", int(type_code), length)
 		return 3
 	} else if type_code == START_EVENT_V3 {
 		if length < 75 {
 			return 1
 		} else {
-			fmt.Println("2")
 			return 3
 		}
 	} else if type_code == FORMAT_DESCRIPTION_EVENT {
@@ -74,10 +72,41 @@ func OpenBinlog(filepath string) (*Binlog, error) {
 	return b, nil
 }
 
+/*
+ABOUT BINLOG VERSION
+====================
+
+The binlog version can be determined by the first event.
+There are a mulititude of factors in this, due to changes
+throughout versions of MySQL.
+
+The two important factors in this are the EVENT_TYPE and
+EVENT_LENGTH variables. We don't deserialize the whole
+event because we have not yet determined the version
+to base our header deserialization on. Luckily, the
+first few fields in the header are always the same,
+no matter which version:
+
+4 bytes = timestamp
+1 byte  = type
+4 bytes = server id
+4 bytes = event size
+
+Everything after that point is version dependent, however.
+
+We also take this time to check the magic bytes. Every binlog,
+no matter which version, starts with 4 magic bytes that are always
+0xfe followed by 'b', 'i', and 'n'. This is normally ignored,
+but we check it to make sure this is actually a binlog before
+we try and parse things we shouldn't. This will probably be
+moved soon, along with this message.
+
+*/
+
 // Finds log version and move reader to end of first event
 // assumes reader is still at beginning of file
 func (b *Binlog) mustFindLogVersion() {
-	magic := make([]byte, EVENT_TYPE_OFFSET)
+	magic := make([]byte, 4)
 	n, err := b.reader.Read(magic)
 
 	if n != len(magic) || err != nil {

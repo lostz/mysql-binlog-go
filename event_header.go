@@ -15,6 +15,7 @@ type EventHeader struct {
 	Flag          []byte
 }
 
+// TODO: move this over to use encoding/binary with struct pointer
 func deserializeEventHeader(r io.Reader) *EventHeader {
 	h := new(EventHeader)
 

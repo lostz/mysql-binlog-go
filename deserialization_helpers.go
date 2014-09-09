@@ -1,4 +1,4 @@
-package deserialization
+package main
 
 import (
 	"bytes"
@@ -76,6 +76,11 @@ func ReadByte(r io.ReadSeeker) (byte, error) {
 	}
 
 	return bytes[0], nil
+}
+
+func ReadBitset(r io.Reader) (Bitset, error) {
+	// TODO
+	return make(Bitset, 0), nil
 }
 
 // This should probably return a time interface

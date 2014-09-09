@@ -5,16 +5,7 @@ import (
 	"log"
 	"io"
 	"os"
-
-	"github.com/nholland94/mysql-binlog-go/deserialization"
 )
-
-// Error macro
-func fatalErr(err error) {
-	if err != nil {
-		log.Fatal("Generic fatal error:", err)
-	}
-}
 
 // Determines the binlog version from the first event
 // http://dev.mysql.com/doc/internals/en/determining-binary-log-version.html
@@ -106,7 +97,7 @@ moved soon, along with this message.
 // Finds log version and move reader to end of first event
 // assumes reader is still at beginning of file
 func (b *Binlog) mustFindLogVersion() {
-	magic, err := deserialization.ReadBytes(b.reader, 4)
+	magic, err := ReadBytes(b.reader, 4)
 
 	if err != nil {
 		log.Fatal("Something went wrong when reading magic number:", err)
@@ -118,14 +109,14 @@ func (b *Binlog) mustFindLogVersion() {
 
 	// Skip timestamp
 	fatalErr(b.Skip(4))
-	type_code, err := deserialization.ReadType(b.reader)
+	type_code, err := ReadType(b.reader)
 
 	if err != nil {
 		log.Fatal("Failed to read type_byte:", err)
 	}
 
 	fatalErr(b.SetPosition(EVENT_LEN_OFFSET))
-	length, err := deserialization.ReadLength(b.reader)
+	length, err := ReadLength(b.reader)
 
 	if err != nil {
 		log.Fatal("Failed to read event_length:", err)
@@ -139,7 +130,7 @@ func (b *Binlog) mustFindLogVersion() {
 		log.Fatal("Sorry, this only supports v4 logs right now.", b.logVersion)
 	}
 
-	nextPos, err := deserialization.ReadNextPosition(b.reader)
+	nextPos, err := ReadNextPosition(b.reader)
 
 	if err != nil {
 		log.Fatal("Failed to read event_length:", err)

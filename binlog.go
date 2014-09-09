@@ -106,10 +106,9 @@ moved soon, along with this message.
 // Finds log version and move reader to end of first event
 // assumes reader is still at beginning of file
 func (b *Binlog) mustFindLogVersion() {
-	magic := make([]byte, 4)
-	n, err := b.reader.Read(magic)
+	magic, err := deserialization.ReadBytes(b.reader, 4)
 
-	if n != len(magic) || err != nil {
+	if err != nil {
 		log.Fatal("Something went wrong when reading magic number:", err)
 	}
 

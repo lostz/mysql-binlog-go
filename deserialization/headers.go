@@ -48,15 +48,15 @@ func checkRead(n int, err error, bytes []byte) error {
 	return nil
 }
 
-func readBytes(r io.ReadSeeker, length int) ([]byte, error) {
+func ReadBytes(r io.ReadSeeker, length int) ([]byte, error) {
 	b := make([]byte, length)
 	n, err := r.Read(b)
 	return b, checkRead(n, err, b);
 }
 
-func readUint32(r io.ReadSeeker) (uint32, error) {
+func ReadUint32(r io.ReadSeeker) (uint32, error) {
 	var n uint32
-	b, err := readBytes(r, 4)
+	b, err := ReadBytes(r, 4)
 	if err != nil {
 		return n, err
 	}
@@ -68,8 +68,8 @@ func readUint32(r io.ReadSeeker) (uint32, error) {
 	return n, nil
 }
 
-func readByte(r io.ReadSeeker) (byte, error) {
-	bytes, err := readBytes(r, 1)
+func ReadByte(r io.ReadSeeker) (byte, error) {
+	bytes, err := ReadBytes(r, 1)
 
 	if err != nil {
 		return byte(0), err
@@ -80,25 +80,25 @@ func readByte(r io.ReadSeeker) (byte, error) {
 
 // This should probably return a time interface
 func ReadTimestamp(r io.ReadSeeker) (uint32, error) {
-	return readUint32(r)
+	return ReadUint32(r)
 }
 
 func ReadType(r io.ReadSeeker) (byte, error) {
-	return readByte(r)
+	return ReadByte(r)
 }
 
 func ReadServerId(r io.ReadSeeker) (uint32, error) {
-	return readUint32(r)
+	return ReadUint32(r)
 }
 
 func ReadLength(r io.ReadSeeker) (uint32, error) {
-	return readUint32(r)
+	return ReadUint32(r)
 }
 
 func ReadNextPosition(r io.ReadSeeker) (uint32, error) {
-	return readUint32(r)
+	return ReadUint32(r)
 }
 
 func ReadFlags(r io.ReadSeeker) ([]byte, error) {
-	return readBytes(r, 2)
+	return ReadBytes(r, 2)
 }

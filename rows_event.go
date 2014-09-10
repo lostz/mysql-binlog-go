@@ -4,91 +4,32 @@ import (
 	"io"
 )
 
-type RowsEventDeserializer struct {
-	reader io.ReadSeeker
-}
-
 type RowsEvent struct {
 	dataType        byte
 	TableId         uint64
 	NumberOfColumns uint64
-	UsedMap         Bitset
+	UsedSet         Bitset
 }
 
-func uint64FromBuffer(b bytes.Buffer) uint64 {
-	var value uint64
-	fatalErr(binary.Read(b, binary.LittleEndian, &value))
-	return value
+func (e *RowsEvent) Type() byte {
+	return e.dataType
 }
 
-func (d *RowsEventDeserializer) readTableId() uint64 {
-	b, err := ReadBytes(d.reader, 6)
-	fatalErr(err)
+func (e *RowsEvent) UsedFields() int {
+	used := 0
 
-	return uint64FromBuffer(bytes.NewBuffer(b))
-}
-
-/*
-MYSQL PACKED INTEGERS
-=====================
-
-MySQL contains a special format of packed integers
-that (somehow unsurprisingly) has virtually no
-documentation. After a lot of searching around
-and reading other libraries/MySQL source code,
-I have figured out how it works.
-
-The number of bytes in the packed integer is variable.
-To determine how long the packed integer is, we have to
-read the first byte and then use it's value to determine
-how long the integer is. However, if it is outside of a
-certain range, it will just be used by itself. Here is 
-how that is determined:
-
- <= 250: Range is 0-250. Just use this byte and don't read anymore.
-  = 251: MySQL error code (not supposed to ever be used in binlogs).
-  = 252: Range is 251-0xffff. Read 2 bytes.
-  = 253: Range is 0xffff-0xffffff. Read 3 bytes.
-  = 254: Range is 0xffffff-0xffffffffffffffff. Read 8 bytes.
-
-It is significantly easier with Go's typing to just default
-all values to uint64. As long as you don't store the events
-in an array or anything, it shouldn't cause any issues though.
-
-*/
-
-func (d *RowsEventDeserializer) readPackedInt() uint64 {
-	b, err := ReadByte(d.reader)
-	fatalErr(err)
-
-	var firstByte uint8
-	fatalErr(binary.Read(bytes.Newbuffer(b), binary.LittleEndian, &firstByte))
-
-	if firstByte <= 251 {
-		return uint64(firstByte)
+	for i := 0; i < e.NumberOfColumns; i++ {
+		if e.UsedSet.Bit(i) {
+			used++
+		}
 	}
 
-	bytesToRead := 0
+	return used
+}
 
-	switch firstByte {
-	case 251:
-		// MySQL error code
-		// something is wrong
-		log.Fatal("Packed integer invalid value:", firstByte)
-	case 252:
-		bytesToRead = 2
-	case 253:
-		bytesToRead = 3
-	case 254:
-		bytesToRead = 8
-	case 255:
-		log.Fatal("Packed integer invalid value:", firstByte)
-	}
-
-	b, err = ReadBytes(d.reader, bytesToRead)
-	fatalErr(err)
-
-	return uint64FromBuffer(bytes.NewBuffer(b))
+type RowsEventDeserializer struct {
+	reader	  io.ReadSeeker
+	tableMaps *map[uint64]*TableMapEvent
 }
 
 /*
@@ -101,16 +42,16 @@ Fixed:
 
 
 Let:
-X = number determined by byte key (see above); can be 0, 2, 3, or 8
+P = number determined by byte key; can be 0, 2, 3, or 8
 N = (7 + number of columns) / 8
-J = (7 + number of bits in column used bitfield) / 8
+J = (7 + number of true bits in column used bitfield) / 8
 K = number of false bits in null bitfield (not counting padding in last byte)
 U = 2 if update event, 1 for any other ones
 B = number of rows (determined by reading till data length reached)
 
 Variable:
-1 byte  = packed int byte key (see above)
-X bytes = number of columns (see above)
+1 byte  = packed int byte key (see ReadPackedInteger)
+P bytes = number of columns
 N bytes = column used bitfield
 U * B * (
 	J bytes = null bitfield
@@ -125,21 +66,54 @@ http://bazaar.launchpad.net/~mysql/mysql-server/5.6/view/head:/sql/log_event.cc#
 
 func (d *RowsEventDeserializer) Deserialize() *RowsEvent {
 	e := new(RowsEvent)
-	e.dataType = 'a' //TODO
-
-	e.TableId = d.readTableId()
-	d.reader.Skip(2, 1) // reserved
-	e.NumberOfColumns = d.readPackedInt()
-
-	usedMapBytes := int((e.NumberOfColumns + 7) / 8)
+	e.dataType = 'a' // TODO
 
 	var err error
-	e.UsedMap, err = ReadBitset(d.reader, useMapBytes)
+	e.TableId, err = ReadTableId(d.reader)
+	fatalErr(err)
+
+	fatalErr(d.reader.Seek(2, 1)) // reserved
+
+	e.NumberOfColumns, err = ReadPackedInteger(d.reader)
+	fatalErr(err)
+
+	usedSetSize := int((e.NumberOfColumns + 7) / 8)
+
+	e.UsedSet, err = ReadBitset(d.reader, usedSetSize)
+	fatalErr(err)
+
+	numberOfFields := e.UsedFields()
+	nullSetSize := int((numberOfFields + 7) / 8)
+	numberOfRows := 1 // TODO: pass in header so we can check if it is update
 
 	// TODO
-}
+	for r := 0; r < numberOfRows; r++ {
+		nullSet, err := ReadBitset(d.reader, nullSetSize)
+		fatalErr(err)
 
-func (e *RowsEvent) Type() byte {
-	return e.dataType
-}
+		numberOfCells := 0
+		for i := 0; i < numberOfFields; i++ {
+			if !nullSet.Bit(i) {
+				numberOfCells++
+			}
+		}
 
+		shouldDeserializeSet := e.UsedSet & nullSet
+		cells := make([]*RowImageCell, numberOfCells)
+		tableMap, ok := GetTableMapCollectionInstance()[e.TableId]
+
+		if !ok {
+			log.Fatal("Never recieved table map event for table:", e.TableId)
+		}
+
+		for i := 0; i < e.NumberOfColumns; i++ {
+			if shouldDeserializeSet.Bit(i) {
+				cells[i] = DeserializeRowImageCell(d.reader, tableMap, i)
+			} else if e.UsedSet.Bit(i) {
+				cells[i] = NewNullRowImageCell(tableMap.ColumnTypes[i])
+			} else {
+				cells[i] = nil
+			}
+		}
+	}
+}

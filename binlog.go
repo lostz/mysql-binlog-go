@@ -9,19 +9,19 @@ import (
 
 // Determines the binlog version from the first event
 // http://dev.mysql.com/doc/internals/en/determining-binary-log-version.html
-func determineLogVersion(type_code byte, length uint32) uint8 {
-	if type_code != START_EVENT_V3 && type_code != FORMAT_DESCRIPTION_EVENT {
+func determineLogVersion(typeCode byte, length uint32) uint8 {
+	if typeCode != START_EVENT_V3 && typeCode != FORMAT_DESCRIPTION_EVENT {
 		return 3
-	} else if type_code == START_EVENT_V3 {
+	} else if typeCode == START_EVENT_V3 {
 		if length < 75 {
 			return 1
 		} else {
 			return 3
 		}
-	} else if type_code == FORMAT_DESCRIPTION_EVENT {
+	} else if typeCode == FORMAT_DESCRIPTION_EVENT {
 		return 4
 	} else {
-		log.Fatal(fmt.Sprintf("Could not determine log version from: [%v, %v]", type_code, length))
+		log.Fatal(fmt.Sprintf("Could not determine log version from: [%v, %v]", typeCode, length))
 	}
 
 	return 0
@@ -109,20 +109,20 @@ func (b *Binlog) mustFindLogVersion() {
 
 	// Skip timestamp
 	fatalErr(b.Skip(4))
-	type_code, err := ReadType(b.reader)
+	typeCode, err := ReadType(b.reader)
 
 	if err != nil {
 		log.Fatal("Failed to read type_byte:", err)
 	}
 
-	fatalErr(b.SetPosition(EVENT_LEN_OFFSET))
+	fatalErr(b.SetPosition(EVENT_LEN_OFFSET + 4))
 	length, err := ReadLength(b.reader)
 
 	if err != nil {
 		log.Fatal("Failed to read event_length:", err)
 	}
 
-	b.logVersion = determineLogVersion(type_code, length)
+	b.logVersion = determineLogVersion(typeCode, length)
 
 	// From here on out, we assume v4 events (for now)
 	// this just errors out if it isn't v4
@@ -130,6 +130,7 @@ func (b *Binlog) mustFindLogVersion() {
 		log.Fatal("Sorry, this only supports v4 logs right now.", b.logVersion)
 	}
 
+	fatalErr(b.SetPosition(EVENT_NEXT_OFFSET + 4))
 	nextPos, err := ReadNextPosition(b.reader)
 
 	if err != nil {
@@ -137,6 +138,8 @@ func (b *Binlog) mustFindLogVersion() {
 	}
 
 	fatalErr(b.SetPosition(int64(nextPos)))
+
+	fmt.Println("Set position to ", nextPos)
 }
 
 func (b *Binlog) SetPosition(n int64) error {
@@ -150,7 +153,6 @@ func (b *Binlog) Skip(n int64) error {
 	return err
 }
 
-/*
-func (b *Binlog) NextEvent() (*Event, error) {
+func (b *Binlog) NextEvent() *Event {
+	return ReadEvent(b.reader)
 }
-*/

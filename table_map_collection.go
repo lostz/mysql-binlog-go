@@ -1,10 +1,10 @@
 package main
 
-var tableMapCollectionInstance *TableMapCollection
+var tableMapCollectionInstance TableMapCollection
 
 type TableMapCollection map[uint64]*TableMapEvent
 
-func GetTableMapCollectionInstance() *TableMapCollection {
+func GetTableMapCollectionInstance() TableMapCollection {
 	if tableMapCollectionInstance == nil {
 		tableMapCollectionInstance = make(TableMapCollection)
 	}

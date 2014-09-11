@@ -1,5 +1,12 @@
 package main
 
+import (
+	"bytes"
+	"io"
+	"log"
+	"fmt"
+)
+
 type MetadataType byte
 
 /*
@@ -35,6 +42,7 @@ const (
 	STRING_METADATA
 	BITSET_METADATA
 	NEW_DECIMAL_METADATA
+	TIME_V2_METADATA
 )
 
 func fatalMetadataLengthMismatch() {
@@ -51,12 +59,21 @@ func DeserializeColomnMetadata(r io.Reader, colType byte) *ColumnMetadata {
 
 	// 1 byte pack size cases
 	case MYSQL_TYPE_FLOAT, MYSQL_TYPE_DOUBLE, MYSQL_TYPE_BLOB, MYSQL_TYPE_GEOMETRY:
-		data, err := ReadByte(r)
+		data, err := ReadBytes(r, 1)
 		fatalErr(err)
 
 		return &ColumnMetadata{
 			data: data,
 			metaType: PACK_SIZE_METADATA,
+		}
+	
+	case MYSQL_TYPE_TIMESTAMP_V2, MYSQL_TYPE_TIME_V2, MYSQL_TYPE_DATETIME_V2:
+		data, err := ReadBytes(r, 1)
+		fatalErr(err)
+
+		return &ColumnMetadata{
+			data: data,
+			metaType: TIME_V2_METADATA,
 		}
 
 	// 2 byte cases
@@ -100,7 +117,8 @@ func (m *ColumnMetadata) PackSize() uint8 {
 
 		toRead = m.data[:]
 
-	case STRING_METADATA, BITSET_METADATA:
+	case STRING_METADATA, BITSET_METADATA: // NOTE: may be big endian (see shyiko version)
+		fmt.Println("!!! HEY, I JUST DECODED STRING METADATA. IF THERE IS AN ERROR BELOW, THIS COULD BE WHY.")
 		if len(m.data) != 2 {
 			fatalMetadataLengthMismatch()
 		}
@@ -186,6 +204,20 @@ func (m *ColumnMetadata) BitsetLength() uint8 {
 	}
 
 	v, err := uint8FromBuffer(bytes.NewBuffer(m.data[:1]))
+	fatalErr(err)
+	return v
+}
+
+func (m *ColumnMetadata) FractionalSecondsPrecision() uint8 {
+	if m.metaType != TIME_V2_METADATA {
+		log.Fatal("Cannot call FractionalSecondsPrecision() on metadata that is not TIME_V2_METADATA")
+	}
+
+	if len(m.data) != 2 {
+		fatalMetadataLengthMismatch()
+	}
+
+	v, err := uint8FromBuffer(bytes.NewBuffer(m.data))
 	fatalErr(err)
 	return v
 }

@@ -72,6 +72,9 @@ const (
 	MYSQL_TYPE_NEWDATE                       // Does not appear in binlog
 	MYSQL_TYPE_VARCHAR
 	MYSQL_TYPE_BIT
+	MYSQL_TYPE_TIMESTAMP_V2
+	MYSQL_TYPE_DATETIME_V2
+	MYSQL_TYPE_TIME_V2
 )
 
 const (

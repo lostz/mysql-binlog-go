@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 )
 
 /*
@@ -46,29 +47,29 @@ func checkRead(n int, err error, bytes []byte) error {
 }
 
 // Interfaces passed in must be pointers
-func readFromBinaryBuffer(b bytes.Buffer, i interface{}) (error) {
+func readFromBinaryBuffer(b *bytes.Buffer, i interface{}) (error) {
 	return binary.Read(b, binary.LittleEndian, i)
 }
 
-func uint64FromBuffer(b bytes.Buffer) (uint64, error) {
+func uint64FromBuffer(b *bytes.Buffer) (uint64, error) {
 	var value uint64
 	err := readFromBinaryBuffer(b, &value)
 	return value, err
 }
 
-func uint32FromBuffer(b bytes.Buffer) (uint32, error) {
+func uint32FromBuffer(b *bytes.Buffer) (uint32, error) {
 	var value uint32
 	err := readFromBinaryBuffer(b, &value)
 	return value, err
 }
 
-func uint16FromBuffer(b bytes.Buffer) (uint16, error) {
+func uint16FromBuffer(b *bytes.Buffer) (uint16, error) {
 	var value uint16
 	err := readFromBinaryBuffer(b, &value)
 	return value, err
 }
 
-func uint8FromBuffer(b bytes.Buffer) (uint8, error) {
+func uint8FromBuffer(b *bytes.Buffer) (uint8, error) {
 	var value uint8
 	err := readFromBinaryBuffer(b, &value)
 	return value, err
@@ -117,7 +118,7 @@ func ReadUint16(r io.Reader) (uint16, error) {
 }
 
 func ReadUint8(r io.Reader) (uint8, error) {
-	b, err := ReadByte(r)
+	b, err := ReadBytes(r, 1)
 	if err != nil {
 		return uint8(0), err
 	}
@@ -125,9 +126,15 @@ func ReadUint8(r io.Reader) (uint8, error) {
 	return uint8FromBuffer(bytes.NewBuffer(b))
 }
 
-func ReadBitset(r io.Reader) (Bitset, error) {
-	// TODO
-	return make(Bitset, 0), nil
+func ReadBitset(r io.Reader, bitCount int) (Bitset, error) {
+	// Shift any remainder bits over current byte block, allow for casting truncation
+	packSize := int((bitCount + 7) / 8)
+	b, err := ReadBytes(r, packSize)
+	if err != nil {
+		return make(Bitset, 0), err
+	}
+
+	return MakeBitsetFromByteArray(b, uint(bitCount)), nil
 }
 
 // This should probably return a time interface
@@ -156,10 +163,13 @@ func ReadFlags(r io.Reader) ([]byte, error) {
 }
 
 func ReadTableId(r io.Reader) (uint64, error) {
-	b, err := ReadBytes(reader, 6)
+	b, err := ReadBytes(r, 6)
 	fatalErr(err)
 
-	return uint64FromBuffer(bytes.NewBuffer(b))
+	// Have to pass 8 byte buffer, so append 6 bytes read to end of 2 '\0' value bytes
+	buf := bytes.NewBuffer(append([]byte{byte(0), byte(0)}, b...))
+
+	return uint64FromBuffer(buf)
 }
 
 /*
@@ -192,16 +202,10 @@ in an array or anything, it shouldn't cause any issues though.
 */
 
 func ReadPackedInteger(r io.Reader) (uint64, error) {
-	b, err := ReadByte(r)
+	firstByte, err := ReadUint8(r)
+	fatalErr(err)
 
-	if err != nil {
-		return uint64(0), err
-	}
-
-	var firstByte uint8
-	fatalErr(binary.Read(bytes.Newbuffer(b), binary.LittleEndian, &firstByte))
-
-	if firstByte <= 251 {
+	if firstByte <= 250 {
 		return uint64(firstByte), nil
 	}
 
@@ -222,10 +226,10 @@ func ReadPackedInteger(r io.Reader) (uint64, error) {
 		log.Fatal("Packed integer invalid value:", firstByte)
 	}
 
-	b, err = ReadBytes(r, bytesToRead)
+	b, err := ReadBytes(r, bytesToRead)
 
 	if err != nil {
-		return uint64, err
+		return uint64(0), err
 	}
 
 	return uint64FromBuffer(bytes.NewBuffer(b))

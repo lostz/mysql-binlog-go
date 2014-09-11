@@ -5,7 +5,16 @@ import (
 )
 
 func main() {
-	_, err := OpenBinlog("C:/ProgramData/MySQL/MySQL Server 5.6/data/mysql-bin.000005")
+	binlog, err := OpenBinlog("/usr/local/var/mysql/mysql-bin.000070")
 
-	fmt.Println("error:", err)
+	fmt.Println("Error: ", err)
+
+	fmt.Println("NextEvent()")
+
+	for {
+		event := binlog.NextEvent()
+
+		fmt.Println("Event: ")
+		fmt.Println("head:", *event.header)
+	}
 }

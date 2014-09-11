@@ -1,9 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
 	"io"
-
-	"github.com/nholland94/mysql-binlog-go/deserialization"
 )
 
 type EventHeader struct {
@@ -11,26 +12,37 @@ type EventHeader struct {
 	Type          byte
 	ServerId      uint32
 	Length        uint32
-	NextPosition uint32
-	Flag          []byte
+	NextPosition  uint32
+	Flag          [2]byte
 }
 
 // TODO: move this over to use encoding/binary with struct pointer
 func deserializeEventHeader(r io.Reader) *EventHeader {
-	h := new(EventHeader)
-
-	h.Timestamp, err = ReadTimestamp(r)
-	fatalErr(err)
-	h.Type, err = ReadType(r)
-	fatalErr(err)
-	h.ServerId, err = ReadServerId(r)
-	fatalErr(err)
-	h.Length, err = ReadLength(r)
-	fatalErr(err)
-	h.NextPosition, err = ReadNextPosition(r)
-	fatalErr(err)
-	h.Flag, err = ReadFlag(r)
+	// Read number of bytes in header
+	b, err := ReadBytes(r, 4 + 1 + 4 + 4 + 4 + 2)
 	fatalErr(err)
 
-	return h
+	var h EventHeader
+	fatalErr(binary.Read(bytes.NewBuffer(b), binary.LittleEndian, &h))
+
+	return &h
+}
+
+func (h *EventHeader) DataDeserializer() EventDeserializer {
+	switch h.Type {
+	case WRITE_ROWS_EVENTv0, UPDATE_ROWS_EVENTv0, DELETE_ROWS_EVENTv0,
+	  WRITE_ROWS_EVENTv1, UPDATE_ROWS_EVENTv1, DELETE_ROWS_EVENTv1,
+	  WRITE_ROWS_EVENTv2, UPDATE_ROWS_EVENTv2, DELETE_ROWS_EVENTv2:
+		return &RowsEventDeserializer{}
+
+	case TABLE_MAP_EVENT:
+		return &TableMapEventDeserializer{}
+
+	default:
+		fmt.Println("unsupported event data deserialization:", h.Type)
+
+		return &SkipEventDeserializer{}
+	}
+
+	return nil
 }

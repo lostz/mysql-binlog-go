@@ -8,9 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// NOTE: While values in the binlog are in LittleEndian, golang int->byte defaults to BigEndian
-//       keep this in mind when you are writing/reading tests
-
 func checkErr(t *testing.T, err error) {
 	if err != nil {
 		t.Error(err)
@@ -21,11 +18,11 @@ func TestReadBitset(t *testing.T) {
 	b := bytes.NewBuffer([]byte{
 		0xff, // 11111111
 		0x00, // 00000000
-		0x02, // 00000010
-		0x55, // 01010101
+		0x40, // 00000010
+		0x55, // 10101010
 	})
 
-	bitset, err := ReadBitset(b, 4)
+	bitset, err := ReadBitset(b, 32)
 	checkErr(t, err)
 
 	// message generator
@@ -40,15 +37,15 @@ func TestReadBitset(t *testing.T) {
 			assert.True(t, bitset.Bit(i), m(i, true))
 		case i < 16:
 			assert.False(t, bitset.Bit(i), m(i, false))
-		case i < 24 && i != 23:
+		case i < 24 && i != 22:
 			assert.False(t, bitset.Bit(i), m(i, false))
-		case i == 23:
+		case i == 22:
 			assert.True(t, bitset.Bit(i), m(i, true))
 		default: // last byte
 			if i % 2 == 0 {
-				assert.False(t, bitset.Bit(i), m(i, false))
-			} else {
 				assert.True(t, bitset.Bit(i), m(i, true))
+			} else {
+				assert.False(t, bitset.Bit(i), m(i, false))
 			}
 		}
 	}

@@ -55,12 +55,30 @@ func (d *TableMapEventDeserializer) Deserialize(reader io.ReadSeeker, header *Ev
 	e := new(TableMapEvent)
 
 	var err error
-	var nullTerm uint8
 
 	e.TableId, err = ReadTableId(reader)
 	fatalErr(err)
 
-	reader.Seek(2, 1)
+	_, err = reader.Seek(3, 1) // Skip 2 reserved and 1 database name length bytes
+	fatalErr(err)
+
+	e.DatabaseName, err = ReadNullTerminatedString(reader)
+	fatalErr(err)
+
+	_, err = reader.Seek(1, 1) // Skip table name length
+	fatalErr(err)
+
+	e.TableName, err = ReadNullTerminatedString(reader)
+	fatalErr(err)
+
+	/*
+	OLD STYLE
+	=========
+
+	var nullTerm uint8
+
+	_, err := reader.Seek(2, 1) // reserved
+	fatalErr(err)
 
 	databaseNameLength, err := ReadUint8(reader)
 	fatalErr(err)
@@ -89,6 +107,7 @@ func (d *TableMapEventDeserializer) Deserialize(reader io.ReadSeeker, header *Ev
 	}
 
 	e.TableName = string(tableNameBytes)
+	*/
 
 	e.NumberOfColumns, err = ReadPackedInteger(reader)
 	fatalErr(err)
@@ -135,6 +154,15 @@ func (d *TableMapEventDeserializer) Deserialize(reader io.ReadSeeker, header *Ev
 	fatalErr(err)
 	fmt.Println("Actual next pos:", n)
 	fmt.Println("vardump:", *e)
+
+	lastBytes, err := ReadBytes(reader, 4)
+	fmt.Println("Remaining bytes:", lastBytes)
+
+	for _, m := range e.Metadata {
+		if m != nil {
+			fmt.Println(*m)
+		}
+	}
 
 	return e
 }

@@ -8,6 +8,27 @@ import (
 	"log"
 )
 
+// These constants may not be necessary later
+// if these aren't being used much, just yank them out
+const (
+	NUL byte = iota
+	SOH
+	STX
+	ETX
+	EOT
+	ENQ
+	ACK
+	BEL
+	BS
+	TAB
+	LF
+	VT
+	FF
+	CR
+	SO
+	SI
+)
+
 /*
 GENERAL PARSING INFO
 ====================
@@ -137,6 +158,25 @@ func ReadBitset(r io.Reader, bitCount int) (Bitset, error) {
 	return MakeBitsetFromByteArray(b, uint(bitCount)), nil
 }
 
+func ReadNullTerminatedString(r io.Reader) (string, error) {
+	read := []byte{}
+
+	for {
+		b, err := ReadByte(r)
+		if err != nil {
+			return "", err
+		}
+
+		if b == NUL {
+			break
+		}
+
+		read = append(read, b)
+	}
+
+	return string(read), nil
+}
+
 // This should probably return a time interface
 func ReadTimestamp(r io.Reader) (uint32, error) {
 	return ReadUint32(r)
@@ -167,7 +207,7 @@ func ReadTableId(r io.Reader) (uint64, error) {
 	fatalErr(err)
 
 	// Have to pass 8 byte buffer, so append 6 bytes read to end of 2 '\0' value bytes
-	buf := bytes.NewBuffer(append([]byte{byte(0), byte(0)}, b...))
+	buf := bytes.NewBuffer(append(b, []byte{NUL, NUL}...))
 
 	return uint64FromBuffer(buf)
 }
@@ -225,6 +265,8 @@ func ReadPackedInteger(r io.Reader) (uint64, error) {
 	case 255:
 		log.Fatal("Packed integer invalid value:", firstByte)
 	}
+
+	fmt.Println("Packed Int: Reading", bytesToRead, "more bytes")
 
 	b, err := ReadBytes(r, bytesToRead)
 

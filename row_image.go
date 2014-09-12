@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"log"
+	"time"
 )
 
 type RowImage []RowImageCell
@@ -19,6 +20,11 @@ type BlobRowImageCell                []byte
 type StringRowImageCell              struct {
 	mysqlType byte
 	value     string
+}
+type DurationRowImageCell            time.Duration
+type TimeRowImageCell                struct {
+	mysqlType byte
+	value     time.Time
 }
 
 func NewNullRowImageCell(mysqlType byte) NullRowImageCell {
@@ -91,6 +97,29 @@ func DeserializeRowImageCell(r io.Reader, tableMap *TableMapEvent, columnIndex i
 
 	case MYSQL_TYPE_TIMESTAMP, MYSQL_TYPE_DATE, MYSQL_TYPE_TIME, MYSQL_TYPE_DATETIME:
 		log.Fatal("time fields disabled")
+
+	case MYSQL_TYPE_TIME_V2:
+		v, err := ReadTimeV2(r)
+		fatalErr(err)
+
+		return DurationRowImageCell(v)
+
+	case MYSQL_TYPE_DATETIME_V2, MYSQL_TYPE_TIMESTAMP_V2:
+		var fn func(io.Reader, *ColumnMetadata) (time.Time, error)
+
+		if mysqlType == MYSQL_TYPE_DATETIME_V2 {
+			fn = ReadDatetimeV2
+		} else {
+			fn = ReadTimestampV2
+		}
+
+		v, err := fn(r, tableMap.Metadata[columnIndex])
+		fatalErr(err)
+
+		return TimeRowImageCell{
+			mysqlType: mysqlType,
+			value:     v,
+		}
 
 	case MYSQL_TYPE_YEAR:
 		v, err := ReadUint8(r)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 )
@@ -20,8 +21,8 @@ func (e *RowsEvent) Type() byte {
 func (e *RowsEvent) UsedFields() int {
 	used := 0
 
-	for i := 0; uint64(i) < e.NumberOfColumns; i++ {
-		if e.UsedSet.Bit(uint(i)) {
+	for i := uint(0); i < uint(e.NumberOfColumns); i++ {
+		if e.UsedSet.Bit(i) {
 			used++
 		}
 	}
@@ -62,6 +63,16 @@ http://bazaar.launchpad.net/~mysql/mysql-server/5.6/view/head:/sql/log_event.cc#
 */
 
 func (d *RowsEventDeserializer) Deserialize(reader io.ReadSeeker, header *EventHeader) EventData {
+	{
+		b, err := ReadBytes(reader, 16)
+		fatalErr(err)
+
+		fmt.Println("rows data bytes:", b)
+
+		_, err = reader.Seek(-16, 1)
+		fatalErr(err)
+	}
+
 	e := new(RowsEvent)
 	e.dataType = 'a' // TODO
 
@@ -71,6 +82,16 @@ func (d *RowsEventDeserializer) Deserialize(reader io.ReadSeeker, header *EventH
 
 	_, err = reader.Seek(2, 1) // reserved
 	fatalErr(err)
+
+	// v2 row events
+	switch header.Type {
+		case WRITE_ROWS_EVENTv2, UPDATE_ROWS_EVENTv2, DELETE_ROWS_EVENTv2:
+			extraInfoLength, err := ReadUint16(reader)
+			fatalErr(err)
+
+			_, err = reader.Seek(int64(extraInfoLength - 2), 1)
+			fatalErr(err)
+	}
 
 	e.NumberOfColumns, err = ReadPackedInteger(reader)
 	fatalErr(err)
@@ -96,7 +117,7 @@ func (d *RowsEventDeserializer) Deserialize(reader io.ReadSeeker, header *EventH
 
 		// TODO: fork this off into bitset.go in a way that makes sense
 		if len(e.UsedSet) != len(nullSet) {
-			log.Fatal("UsedSet and NullSet length mismatched")
+			log.Fatal("UsedSet and NullSet length mismatched", len(e.UsedSet), len(nullSet), numberOfFields, e.UsedSet, e.NumberOfColumns, e.TableId)
 		}
 
 		shouldDeserializeSet := MakeBitset(uint(e.NumberOfColumns))

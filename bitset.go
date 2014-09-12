@@ -1,9 +1,9 @@
 package main
 
 // Based from https://gist.github.com/willf/965762
+// For info on basic bitwise operations: http://stackoverflow.com/a/47990/3830940
 
 import (
-	"fmt"
 	"math"
 	"log"
 )
@@ -32,11 +32,9 @@ func MakeBitsetFromByteArray(bytes []byte, maxSize uint) Bitset {
 
 	for i := uint(0); i < uint(len(bytes)); i++ {
 		block := bytes[i]
-		fmt.Println("block:", block)
 
 		for j := uint(0); j < 8; j++ {
-			fmt.Println("	", (block) & (1 << (j)))
-			if (block) & (1 << (j)) == 1 {
+			if ((block) & (1 << (j))) > 0 {
 				bitset.SetBit((i * 8) + j)
 			}
 		}
@@ -50,7 +48,7 @@ func (set Bitset) Bit(i uint) bool {
 }
 
 func (set Bitset) SetBit(i uint) {
-	set[i / 64] &= (1 << (i % 64))
+	set[i / 64] |= (1 << (i % 64))
 }
 
 func (set Bitset) ClearBit(i uint) {
@@ -63,6 +61,24 @@ func (set Bitset) Clear() {
 	}
 }
 
+func (set Bitset) Splice(start, end uint) Bitset {
+	maxSize := end - start
+
+	if maxSize <= 0 {
+		log.Fatal("Bad start/end values for bitset splicing")
+	}
+
+	splicedSet := MakeBitset(maxSize)
+
+	for i := uint(0); i < uint(maxSize); i++ {
+		if set.Bit(start + i) {
+			splicedSet.SetBit(i)
+		}
+	}
+
+	return splicedSet
+}
+
 // strconv doesn't force zeroes to print, so hackyness, here I come
 func (set Bitset) String() string {
 	s := ""
@@ -72,6 +88,10 @@ func (set Bitset) String() string {
 			s += "1"
 		} else {
 			s += "0"
+		}
+
+		if (i + 1) % 8 == 0 {
+			s += " "
 		}
 	}
 

@@ -11,10 +11,12 @@ func main() {
 
 	fmt.Println("NextEvent()")
 
-	for {
-		event := binlog.NextEvent()
+	count := 0
 
-		fmt.Println("Event: ")
-		fmt.Println("head:", *event.header)
+	for {
+		binlog.NextEvent()
+
+		count++
+		fmt.Println("Events read:", count)
 	}
 }

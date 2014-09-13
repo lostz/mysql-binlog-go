@@ -108,25 +108,12 @@ func (d *RowsEventDeserializer) Deserialize(reader io.ReadSeeker, header *EventH
 		nullSet, err := ReadBitset(reader, numberOfFields)
 		fatalErr(err)
 
-		numberOfCells := 0
-		for i := 0; i < numberOfFields; i++ {
-			if !nullSet.Bit(uint(i)) {
-				numberOfCells++
-			}
-		}
-
 		// TODO: fork this off into bitset.go in a way that makes sense
 		if len(e.UsedSet) != len(nullSet) {
 			log.Fatal("UsedSet and NullSet length mismatched", len(e.UsedSet), len(nullSet), numberOfFields, e.UsedSet, e.NumberOfColumns, e.TableId)
 		}
 
-		shouldDeserializeSet := MakeBitset(uint(e.NumberOfColumns))
-
-		for i, _ := range e.UsedSet {
-			shouldDeserializeSet[i] = e.UsedSet[i] & nullSet[i]
-		}
-
-		cells := make(RowImage, numberOfCells)
+		cells := make(RowImage, e.NumberOfColumns)
 		tableMap, ok := GetTableMapCollectionInstance()[e.TableId]
 
 		if !ok {
@@ -134,10 +121,12 @@ func (d *RowsEventDeserializer) Deserialize(reader io.ReadSeeker, header *EventH
 		}
 
 		for i := 0; i < int(e.NumberOfColumns); i++ {
-			if shouldDeserializeSet.Bit(uint(i)) {
-				cells[i] = DeserializeRowImageCell(reader, tableMap, i)
-			} else if e.UsedSet.Bit(uint(i)) {
-				cells[i] = NewNullRowImageCell(tableMap.ColumnTypes[i])
+			if e.UsedSet.Bit(uint(i)) {
+				if nullSet.Bit(uint(i)) {
+					cells[i] = NewNullRowImageCell(tableMap.ColumnTypes[i])
+				} else {
+					cells[i] = DeserializeRowImageCell(reader, tableMap, i)
+				}
 			} else {
 				cells[i] = nil
 			}

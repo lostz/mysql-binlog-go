@@ -3,12 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"time"
 )
 
 func expandBitsetToBytesBigEndian(set Bitset, bitsetBitCount int) []byte {
-	byteArray := make([]byte, int(bitsetBitCount / 8))
+	byteArray := make([]byte, int((bitsetBitCount + 7) / 8))
 
 	for i := uint(bitsetBitCount); i > 0 ; i-- {
 		if set.Bit(i) {

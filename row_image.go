@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"time"
@@ -109,8 +110,10 @@ func DeserializeRowImageCell(r io.Reader, tableMap *TableMapEvent, columnIndex i
 
 		if mysqlType == MYSQL_TYPE_DATETIME_V2 {
 			fn = ReadDatetimeV2
+			fmt.Println("datetime")
 		} else {
 			fn = ReadTimestampV2
+			fmt.Println("timestamp")
 		}
 
 		v, err := fn(r, tableMap.Metadata[columnIndex])

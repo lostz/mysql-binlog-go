@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"io"
 	"log"
 	"fmt"
@@ -107,15 +108,15 @@ func DeserializeColomnMetadata(r io.Reader, colType byte) *ColumnMetadata {
 }
 
 func (m *ColumnMetadata) PackSize() uint8 {
-	var toRead []byte
-
 	switch(m.metaType) {
 	case PACK_SIZE_METADATA:
 		if len(m.data) != 1 {
 			fatalMetadataLengthMismatch()
 		}
 
-		toRead = m.data[:]
+		v, err := uint8FromBuffer(bytes.NewBuffer(m.data))
+		fatalErr(err)
+		return v
 
 	case STRING_METADATA, BITSET_METADATA: // NOTE: may be big endian (see shyiko version)
 		fmt.Println("!!! HEY, I JUST DECODED STRING METADATA. IF THERE IS AN ERROR BELOW, THIS COULD BE WHY.")
@@ -123,7 +124,9 @@ func (m *ColumnMetadata) PackSize() uint8 {
 			fatalMetadataLengthMismatch()
 		}
 
-		toRead = m.data[1:]
+		var v uint8
+		fatalErr(binary.Read(bytes.NewBuffer(m.data[1:]), binary.BigEndian, &v))
+		return v
 
 	case NEW_DECIMAL_METADATA:
 		log.Fatal("Cannot call PackSize() on NEW_DECIMAL_METADATA")
@@ -135,9 +138,7 @@ func (m *ColumnMetadata) PackSize() uint8 {
 		log.Fatal("Invalid metadata type!")
 	}
 
-	v, err := uint8FromBuffer(bytes.NewBuffer(toRead))
-	fatalErr(err)
-	return v
+	return 0
 }
 
 func (m *ColumnMetadata) RealType() byte {

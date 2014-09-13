@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -56,13 +57,23 @@ ReadFlags
 */
 
 func checkRead(n int, err error, bytes []byte) error {
+	fmt.Println("4")
+
 	if err != nil {
 		return err
 	}
 
+	fmt.Println("5")
+
 	if n != len(bytes) {
-		return fmt.Errorf("Read mismatch: length=%v, bytes=%v", n, bytes)
+
+		fmt.Println("8")
+		fmt.Println("asdfadfs:", n)
+		return errors.New("hello")
+		// return fmt.Errorf("Read mismatch: length=%v, bytes=%v", n, bytes)
 	}
+
+	fmt.Println("6")
 
 	return nil
 }
@@ -97,8 +108,11 @@ func uint8FromBuffer(b *bytes.Buffer) (uint8, error) {
 }
 
 func ReadBytes(r io.Reader, length int) ([]byte, error) {
+	fmt.Println("1")
 	b := make([]byte, length)
+	fmt.Println("2")
 	n, err := r.Read(b)
+	fmt.Println("3")
 	return b, checkRead(n, err, b);
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -139,27 +140,71 @@ func DeserializeRowImageCell(r io.Reader, tableMap *TableMapEvent, columnIndex i
 		log.Fatal("NEWDECIMAL values are not supported.")
 
 	case MYSQL_TYPE_VARCHAR:
-		log.Fatal("VARCHAR currently disabled")
+		// If you see this and this has been working fine for a while, remove this
+		tempErr := func(err error) {
+			if err != nil {
+				fmt.Println("!!! SOMETHING WENT WRONG IN VARCHAR")
+				fmt.Println("Hint: lengthBytes var may be stored as packed int or based on max length (use metadata).")
+				fatalErr(err)
+			}
+		}
+
+		lengthBytes, err := ReadUint8(r)
+		tempErr(err)
+
+		fmt.Println("first:", lengthBytes)
+
+		b, err := ReadBytes(r, int(lengthBytes))
+		tempErr(err)
+
+		fmt.Println("bytes:", string(b))
+
+		return StringRowImageCell{
+			mysqlType: mysqlType,
+			value:     string(b),
+		}
 
 	case MYSQL_TYPE_STRING, MYSQL_TYPE_VAR_STRING:
-		log.Fatal("STRING/VAR_STRING currently disabled")
+		fmt.Println("i:", columnIndex)
 
-		/*
 		metadata := tableMap.Metadata[columnIndex]
-		lengthBytes, err := ReadBytes(r, metadata.PackSize())
+		packSize := metadata.PackSize()
+		fmt.Println("pack:", packSize)
+		fmt.Println("a")
+		lengthBytes, err := ReadBytes(r, int(packSize))
+		fmt.Println("c")
 		fatalErr(err)
+
+		fmt.Println("d")
 
 		var length uint32
-		fatalErr(readFromBinaryBuffer(bytes.NewBuffer(lengthBytes), &length))
+		var _ = binary.Read
+		fatalErr(binary.Read(bytes.NewBuffer(padBytesBigEndian(lengthBytes, len(lengthBytes))), binary.BigEndian, &length))
+		// fatalErr(readFromBinaryBuffer(bytes.NewBuffer(lengthBytes), &length))
+		fmt.Println("q")
+		fmt.Println("length:", length)
 
-		b, err := ReadBytes(r, length)
+		b, err := ReadBytes(r, int(length))
+		fmt.Println("afdas")
 		fatalErr(err)
+		fmt.Println("l")
+
+		/*
+		set, err := ReadBitset(r, 8 * 8)
+		fatalErr(err)
+		fmt.Println("set:", set)
+		*/
+
+		stuff, err := ReadBytes(r, 200)
+		fatalErr(err)
+		fmt.Println("stuff:", string(stuff))
+
+		log.Fatal("done")
 
 		return StringRowImageCell{
 			mysqlType: metadata.RealType(),
 			value:     string(b),
 		}
-		*/
 
 	case MYSQL_TYPE_BLOB:
 		metadata := tableMap.Metadata[columnIndex]

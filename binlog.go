@@ -28,8 +28,9 @@ func determineLogVersion(typeCode byte, length uint32) uint8 {
 }
 
 type Binlog struct {
-	reader     io.ReadSeeker
-	logVersion uint8
+	reader      io.ReadSeeker
+	logVersion  uint8
+	bytesLength int64
 }
 
 func OpenBinlog(filepath string) (*Binlog, error) {
@@ -53,9 +54,16 @@ func OpenBinlog(filepath string) (*Binlog, error) {
 	log.Fatal("done")
 	*/
 
+	stat, err := file.Stat()
+
+	if err != nil {
+		return nil, err
+	}
+
 	b := &Binlog{
-		reader: file,
-		logVersion: 0,
+		reader:      file,
+		logVersion:  0,
+		bytesLength: stat.Size(),
 	}
 
 	b.mustFindLogVersion()
@@ -153,6 +161,18 @@ func (b *Binlog) Skip(n int64) error {
 	return err
 }
 
+func (b *Binlog) GetPosition() (int64, error) {
+	return b.reader.Seek(0, 1)
+}
+
+// TODO: error handling
 func (b *Binlog) NextEvent() *Event {
+	pos, err := b.GetPosition()
+	fatalErr(err)
+
+	if pos == b.bytesLength {
+		log.Fatal("done reading")
+	}
+
 	return ReadEvent(b.reader)
 }

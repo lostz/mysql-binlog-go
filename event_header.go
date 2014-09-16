@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 )
 
 type EventHeader struct {
@@ -19,6 +20,8 @@ type EventHeader struct {
 // TODO: move this over to use encoding/binary with struct pointer
 func deserializeEventHeader(r io.Reader) *EventHeader {
 	// Read number of bytes in header
+	s, _ := r.(*os.File).Stat()
+	fmt.Println("Stats:", s)
 	b, err := ReadBytes(r, 4 + 1 + 4 + 4 + 4 + 2)
 	fatalErr(err)
 

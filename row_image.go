@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -165,44 +164,36 @@ func DeserializeRowImageCell(r io.Reader, tableMap *TableMapEvent, columnIndex i
 		}
 
 	case MYSQL_TYPE_STRING, MYSQL_TYPE_VAR_STRING:
-		fmt.Println("i:", columnIndex)
+		tempErr := func(err error) {
+			if err != nil {
+				fmt.Println("!!! SOMETHING WENT WRONG IN STRING/VAR_STRING")
+				fatalErr(err)
+			}
+		}
+
+		/*
+		I'm still not completely sure if this is the correct way to do this.
+
+		Here is a possible alternative for acquiring the length:
+		
+		length, err := ReadUint8(r)
+
+		or
 
 		metadata := tableMap.Metadata[columnIndex]
 		packSize := metadata.PackSize()
-		fmt.Println("pack:", packSize)
-		fmt.Println("a")
 		lengthBytes, err := ReadBytes(r, int(packSize))
-		fmt.Println("c")
-		fatalErr(err)
 
-		fmt.Println("d")
-
-		var length uint32
-		var _ = binary.Read
-		fatalErr(binary.Read(bytes.NewBuffer(padBytesBigEndian(lengthBytes, len(lengthBytes))), binary.BigEndian, &length))
-		// fatalErr(readFromBinaryBuffer(bytes.NewBuffer(lengthBytes), &length))
-		fmt.Println("q")
-		fmt.Println("length:", length)
-
-		b, err := ReadBytes(r, int(length))
-		fmt.Println("afdas")
-		fatalErr(err)
-		fmt.Println("l")
-
-		/*
-		set, err := ReadBitset(r, 8 * 8)
-		fatalErr(err)
-		fmt.Println("set:", set)
 		*/
 
-		stuff, err := ReadBytes(r, 200)
-		fatalErr(err)
-		fmt.Println("stuff:", string(stuff))
+		length, err := ReadPackedInteger(r)
+		tempErr(err)
 
-		log.Fatal("done")
+		b, err := ReadBytes(r, int(length))
+		tempErr(err)
 
 		return StringRowImageCell{
-			mysqlType: metadata.RealType(),
+			mysqlType: mysqlType,
 			value:     string(b),
 		}
 

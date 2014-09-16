@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 	"log"
 	"fmt"
@@ -47,7 +48,7 @@ const (
 )
 
 func fatalMetadataLengthMismatch() {
-	log.Fatal("Mismatch of metadata length!")
+	fatalErr(errors.New("Mismatch of metadata length!"))
 }
 
 type ColumnMetadata struct {
@@ -67,7 +68,7 @@ func DeserializeColomnMetadata(r io.Reader, colType byte) *ColumnMetadata {
 			data: data,
 			metaType: PACK_SIZE_METADATA,
 		}
-	
+
 	case MYSQL_TYPE_TIMESTAMP_V2, MYSQL_TYPE_TIME_V2, MYSQL_TYPE_DATETIME_V2:
 		data, err := ReadBytes(r, 1)
 		fatalErr(err)
@@ -214,7 +215,7 @@ func (m *ColumnMetadata) FractionalSecondsPrecision() uint8 {
 		log.Fatal("Cannot call FractionalSecondsPrecision() on metadata that is not TIME_V2_METADATA")
 	}
 
-	if len(m.data) != 2 {
+	if len(m.data) != 1 {
 		fatalMetadataLengthMismatch()
 	}
 
